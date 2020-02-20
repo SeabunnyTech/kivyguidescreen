@@ -1,0 +1,15 @@
+MANIFEST.in
+setup.py
+kivyguidescreen/__init__.py
+kivyguidescreen/guidescreenmanager.py
+kivyguidescreen.egg-info/PKG-INFO
+kivyguidescreen.egg-info/SOURCES.txt
+kivyguidescreen.egg-info/dependency_links.txt
+kivyguidescreen.egg-info/not-zip-safe
+kivyguidescreen.egg-info/requires.txt
+kivyguidescreen.egg-info/top_level.txt
+kivyguidescreen/fonts/NotoSansCJKtc-Regular.otf
+kivyguidescreen/screens/__init__.py
+kivyguidescreen/screens/armath.py
+kivyguidescreen/screens/billboard.py
+kivyguidescreen/screens/common.py

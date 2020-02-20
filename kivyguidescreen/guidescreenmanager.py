@@ -1,0 +1,293 @@
+from kivy.uix.screenmanager import ScreenManager, FadeTransition, Screen
+from kivy.properties import BooleanProperty, ListProperty, StringProperty, OptionProperty, ObjectProperty
+from kivy.graphics import InstructionGroup, Line, Color
+
+from kivy.utils import QueryDict
+
+import os
+import json
+
+from kivy.core.window import Window
+
+Window.show_cursor = False
+
+# set traditional chinese font
+from kivy.resources import resource_add_path
+pkgpath = os.path.dirname(__file__)
+resource_add_path(pkgpath)
+
+
+
+class GuideScreenManager(ScreenManager):
+
+
+    colors = QueryDict({
+        'C' : [.2, .7, .7],
+        'Y' : [.7, .7, .2],
+        'M' : [.7, .2, .7],
+        'darkgray' : [.2, .2, .2],
+        'green': [.2, .7, .2],
+    })
+
+    tempfile = StringProperty('')
+
+    settings = QueryDict({})
+
+    _subpixel_cursor = ListProperty([0, 0])
+
+    wallpaper = ObjectProperty(None, allownone=True)
+
+
+    def __init__(self, **kw):
+        super(GuideScreenManager, self).__init__(**kw)
+        self.tempfile = type(self).__name__ + '.json'
+
+        # add crosshair to mouse
+        Window.bind(mouse_pos=self.on_mouse_pos)
+        with self.canvas.after:
+            self.crosshair = InstructionGroup()
+        
+        # keyboard
+        self._keyboard = Window.request_keyboard(self._keyboard_closed, self)
+        self._keyboard.bind(on_key_down=self._on_keyboard_down)
+
+        # binds
+        self.bind(current=self.update_cursor_state)
+        self.bind(on_enter=self.update_cursor_state)
+
+        # switch to first screen
+        self.transition = FadeTransition()
+
+
+
+    def load_settings(self, settings):
+        self.settings = QueryDict(settings)
+        screen_to_go = self.get_screen(settings['current'])
+        screen_to_go.unfreeze(settings['screen_state'])
+        self.current = settings['current']
+
+
+    def moveCursor(self, dx, dy):
+        from kivy.utils import platform
+        if platform == 'win':
+            import win32api
+            x, y = win32api.GetCursorPos()
+
+            ############# WIER PROBELM: SetCursorPos fail to move one pixel sometimes
+            nx, ny = win32api.GetCursorPos()
+            if [nx, ny] == [x, y]:
+                win32api.SetCursorPos((x + 2 *dx, y + 2 * dy))
+        elif platform == 'linux':
+            import pyautogui
+            x, y = pyautogui.position()
+            pyautogui.moveTo( x + dx, y + dy )
+        else:
+            raise NotImplementedError
+
+
+    def update_cursor_state(self, *args):
+        self.on_mouse_pos(None, Window.mouse_pos)
+
+    @property
+    def subpixel_cursor(self):
+        return self._subpixel_cursor[:]
+
+
+    def on_mouse_pos(self, caller, pos):
+        self._subpixel_cursor[:] = pos
+
+
+    def on__subpixel_cursor(self, *args):
+        if 'show_cursor' in dir(self.current_screen) and self.current_screen.show_cursor is False:
+            self.crosshair.clear()
+            return
+        
+        x, y = self._subpixel_cursor
+        self.crosshair.clear()
+        self.crosshair.add(Color(1, 1, 1))
+        self.crosshair.add(Line(points=[x, 0, x, Window.height]))
+        self.crosshair.add(Line(points=[0, y, Window.width, y]))
+
+
+    def _keyboard_closed(self):
+        self._keyboard.unbind(on_key_down=self._on_keyboard_down)
+        self._keyboard = None
+
+
+    def _on_keyboard_down(self, keyboard, keycode, text, modifiers):
+
+        mouse_dxdy = {
+            'up'    : (0, 1),
+            'down'  : (0, -1),
+            'left'  : (-1, 0),
+            'right' : (1, 0)
+        }
+        
+        keyname = keycode[1]
+        if keyname.startswith('numpad'):
+            keyname = keyname[6:]
+            if keyname == 'decimal':
+                keyname = '.'
+            if self.current_screen.numpad_as_arrows and keyname in ['2', '4', '6', '8']:
+                keyname = {'2':'down', '4':'left', '6':'right', '8':'up'}[keyname]
+
+        if keyname in ['up', 'down', 'left', 'right']:
+            dx, dy = mouse_dxdy[keyname]
+            px, py = self._subpixel_cursor
+            self._subpixel_cursor[:] = px + dx*0.25, py + dy*0.25
+            return True
+        else:
+            mapping = {'enter':'on_press_enter', 'backspace':'undo', 'spacebar':'on_press_space', 'tab':'on_press_tab'}
+
+            if keyname in mapping:
+                shortcut_func_name = mapping[keyname]
+
+            if (keyname in mapping) and (shortcut_func_name in dir(self.current_screen)):
+                func = getattr(self.current_screen, shortcut_func_name)
+                return func()
+            elif 'on_key_down' in dir(self.current_screen):
+                return self.current_screen.on_key_down(keyname, modifiers)
+
+
+    def autosave(self, *args):
+        if self.current_screen.autosave is False:
+            return
+        self.save_settings(self.tempfile)
+
+
+    def save_settings(self, filename):
+        self.settings.current = self.current
+        self.settings.screen_state = self.current_screen.freeze()
+        try:
+            # could fail here
+            with open(filename + '.bak', 'w') as tempfile:
+                json.dump(self.settings, tempfile)
+            # delete previous autosave file and replace it
+            if os.path.isfile(filename):
+                os.remove(filename)
+            os.rename(filename + '.bak', filename)
+        except:
+            import traceback
+            traceback.print_exc()
+            # remove corrupted file
+            os.remove(filename + '.bak')
+
+
+    def on_wallpaper(self, caller, wallpaper):
+
+        def pass_wallpaper(caller, screen):
+            if wallpaper.parent is not None:
+                wallpaper.parent.remove_widget(wallpaper)
+            if screen.accept_wallpaper:
+                screen.set_wallpaper(wallpaper)
+
+        # bind switching action to screen change
+        if wallpaper is not None:
+            self.bind(current_screen=pass_wallpaper)
+        else:
+            self.unbind(current_screen=pass_wallpaper)
+
+        # add / remove wall paper now
+        if self.current_screen.accept_wallpaper:
+            self.current_screen.set_wallpaper(wallpaper)
+
+
+
+class GuideScreen(Screen):
+
+    background = ListProperty([0, 0, 0])
+
+    # position the guide text
+    anchor_x = OptionProperty('center', options=['left', 'center', 'right'])
+    anchor_y = OptionProperty('center', options=['top', 'center', 'bottom'])
+    guide = StringProperty('')
+
+    # some handy settings
+    show_cursor = BooleanProperty(True)
+    accept_wallpaper = BooleanProperty(False)
+    autosave = BooleanProperty(True)
+    numpad_as_arrows = BooleanProperty(False)
+
+    def __init__(self, **kw):
+        self.state = QueryDict({})
+        super(GuideScreen, self).__init__(**kw)
+
+    def freeze(self):
+        self.state.update({'show_cursor' : self.show_cursor})
+        return self.state
+
+    def unfreeze(self, state):
+        self.state = QueryDict(state)
+        self.show_cursor = self.state.show_cursor
+
+    def on_show_cursor(self, *args):
+        if self.manager is not None:
+            self.manager.update_cursor_state()
+
+    def goto_next_screen(self, *args):
+        self.manager.current = self.manager.next()
+
+    def goto_previous_screen(self, *args):
+        self.manager.current = self.manager.previous()
+
+    def load_from_manager(self, varname):
+        return self.manager.settings[varname]
+    
+    def upload_to_manager(self, overwrite=False, **kw):
+        '''
+        if not overwrite:
+            for k in kw:
+                if k in self.manager.settings:
+                    raise IndexError("Overwriting existing setting!! Do this explicitly with overwrite=True only")
+        '''
+        self.manager.settings.update(kw)
+
+    def save_settings(self, filename):
+        self.manager.save_settings(filename)
+
+    def set_wallpaper(self, wallpaper_widget):
+        self.ids.wallpaperlayer.clear_widgets()
+        if wallpaper_widget is None:
+            return
+
+        if wallpaper_widget.parent is not None:
+            wallpaper_widget.parent.remove_widget(wallpaper_widget)
+
+        self.ids.wallpaperlayer.add_widget(wallpaper_widget)
+
+
+from kivy.lang import Builder
+Builder.load_string("""
+
+<Label, Button, TextInput>:
+    font_name: 'fonts/NotoSansCJKtc-Regular.otf'
+    markup: True
+    font_size: '20sp'
+    halign: 'center'
+
+
+<GuideScreen>:
+    canvas:
+        Color:
+            rgb: root.background
+        Rectangle:
+            pos: 0, 0
+            size: self.size
+
+    AnchorLayout:
+        id: wallpaperlayer
+        anchor_x: root.anchor_x
+        anchor_y: root.anchor_y
+
+    AnchorLayout:
+        id: guidelayer
+        anchor_x: root.anchor_x
+        anchor_y: root.anchor_y
+        Label:
+            id: guidelabel
+            size_hint: None, None
+            anchor_y: 'top'
+            color: [0, 0, 0] if sum(root.background) > 1.5 else [1, 1, 1]
+            text: root.guide
+
+""")
