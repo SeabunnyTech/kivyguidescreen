@@ -114,6 +114,7 @@ class GuideScreenManager(ScreenManager):
         self._keyboard = None
 
 
+
     def _on_keyboard_down(self, keyboard, keycode, text, modifiers):
 
         mouse_dxdy = {
@@ -135,6 +136,7 @@ class GuideScreenManager(ScreenManager):
             dx, dy = mouse_dxdy[keyname]
             px, py = self._subpixel_cursor
             self._subpixel_cursor[:] = px + dx*0.25, py + dy*0.25
+            self.current_screen.on_arrow_pressed(keyname=keyname, dxdy=[dx, dy])
             return True
         else:
             mapping = {'enter':'on_press_enter', 'backspace':'undo', 'spacebar':'on_press_space', 'tab':'on_press_tab'}
@@ -219,6 +221,9 @@ class GuideScreen(Screen):
     def unfreeze(self, state):
         self.state = QueryDict(state)
         self.show_cursor = self.state.show_cursor
+
+    def on_arrow_pressed(self, keyname, dxdy):
+        pass
 
     def on_show_cursor(self, *args):
         if self.manager is not None:
