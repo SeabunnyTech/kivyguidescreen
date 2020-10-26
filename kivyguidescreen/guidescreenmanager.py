@@ -8,6 +8,7 @@ import os
 import json
 
 from kivy.core.window import Window
+from kivy.base import stopTouchApp
 
 Window.show_cursor = False
 
@@ -37,6 +38,10 @@ class GuideScreenManager(ScreenManager):
 
     wallpaper = ObjectProperty(None, allownone=True)
 
+    default_address = StringProperty('http://localhost:8080')
+    #default_address = StringProperty('http://192.168.0.11:8080') # 泓軒電腦
+    #default_address = StringProperty('http://192.168.0.19:8080') # left
+    #default_address = StringProperty('http://192.168.0.18:8080') # 台電機器
 
     def __init__(self, **kw):
         super(GuideScreenManager, self).__init__(**kw)
@@ -56,7 +61,46 @@ class GuideScreenManager(ScreenManager):
         self.bind(on_enter=self.update_cursor_state)
 
         # switch to first screen
-        self.transition = FadeTransition()
+        self.transition = FadeTransition(duration=0.1)
+        
+        # socketio serve stuff
+        self.socketio_clients = {}
+        self.socketio_client_screen_map = {}
+
+        Window.bind(on_close=self.on_window_closed)
+
+
+
+    def on_window_closed(self, *arg):
+        for client in self.socketio_clients.values():
+            client.disconnect()
+
+
+
+    def socketio_client(self, screen):
+        try:
+            return self.socketio_client_screen_map[screen]
+        except KeyError:
+            return self.connect_socketio_server(screen)
+
+
+
+    def connect_socketio_server(self, screen, address=None):
+
+        if address is None:
+            address = self.default_address
+
+        import socketio
+        
+        if address in self.socketio_clients:
+            sio = self.socketio_clients[address]
+        else:
+            self.socketio_clients[address] = sio = socketio.Client()
+            sio.connect(address)
+
+        self.socketio_client_screen_map[screen] = sio
+
+        return sio
 
 
 
@@ -105,8 +149,8 @@ class GuideScreenManager(ScreenManager):
         x, y = self._subpixel_cursor
         self.crosshair.clear()
         self.crosshair.add(Color(1, 1, 1))
-        self.crosshair.add(Line(points=[x, 0, x, Window.height]))
-        self.crosshair.add(Line(points=[0, y, Window.width, y]))
+        self.crosshair.add(Line(points=[x, 0, x, Window.height], width=0.25))
+        self.crosshair.add(Line(points=[0, y, Window.width, y], width=0.25))
 
 
     def _keyboard_closed(self):
@@ -136,7 +180,8 @@ class GuideScreenManager(ScreenManager):
             dx, dy = mouse_dxdy[keyname]
             px, py = self._subpixel_cursor
             self._subpixel_cursor[:] = px + dx*0.25, py + dy*0.25
-            self.current_screen.on_arrow_pressed(keyname=keyname, dxdy=[dx, dy])
+            if 'on_press_arrow' in dir(self.current_screen):
+                self.current_screen.on_press_arrow(keyname=keyname, dxdy=[dx, dy])
             return True
         else:
             mapping = {'enter':'on_press_enter', 'backspace':'undo', 'spacebar':'on_press_space', 'tab':'on_press_tab'}
@@ -163,7 +208,7 @@ class GuideScreenManager(ScreenManager):
         try:
             # could fail here
             with open(filename + '.bak', 'w') as tempfile:
-                json.dump(self.settings, tempfile)
+                json.dump(self.settings, tempfile, indent=4)
             # delete previous autosave file and replace it
             if os.path.isfile(filename):
                 os.remove(filename)
@@ -230,6 +275,8 @@ class GuideScreen(Screen):
             self.manager.update_cursor_state()
 
     def goto_next_screen(self, *args):
+        if self.manager.current_screen == self.manager.screens[-1]:
+            stopTouchApp()
         self.manager.current = self.manager.next()
 
     def goto_previous_screen(self, *args):
@@ -259,6 +306,21 @@ class GuideScreen(Screen):
             wallpaper_widget.parent.remove_widget(wallpaper_widget)
 
         self.ids.wallpaperlayer.add_widget(wallpaper_widget)
+
+    def connect_socketio_server(self, address=None):
+        if address is not None:
+            self.manager.connect_socketio_server(self, address=address)
+        else:
+            self.manager.connect_socketio_server(self)
+
+    @property
+    def subpixel_cursor(self):
+        return self.manager.subpixel_cursor
+
+    @property
+    def socketio_client(self):
+        return self.manager.socketio_client(self)
+
 
 
 from kivy.lang import Builder
@@ -291,6 +353,7 @@ Builder.load_string("""
         Label:
             id: guidelabel
             size_hint: None, None
+            size: self.texture_size
             anchor_y: 'top'
             color: [0, 0, 0] if sum(root.background) > 1.5 else [1, 1, 1]
             text: root.guide
