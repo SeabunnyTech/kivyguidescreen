@@ -279,6 +279,9 @@ class GuideScreen(Screen):
             stopTouchApp()
         self.manager.current = self.manager.next()
 
+    def undo(self):
+        self.goto_previous_screen()
+
     def goto_previous_screen(self, *args):
         self.manager.current = self.manager.previous()
 
