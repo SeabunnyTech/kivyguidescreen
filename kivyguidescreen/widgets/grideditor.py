@@ -5,6 +5,8 @@ from kivy.uix.widget import Widget
 from kivy.properties import ColorProperty
 
 
+from time import time
+
 class GridNode:
 
     def __init__(self, xy, uv):
@@ -88,38 +90,48 @@ class GridEditor(Widget):
     line_color = ColorProperty('red')
     blink_color = ColorProperty('yellow')
 
-    def __init__(self, griddata, **kw):
+    def __init__(self, griddata=None, **kw):
         super().__init__(**kw)
 
-        with self.canvas.after:
-            Color(*self.line_color)
-            self.homography_instructions = InstructionGroup()
-            Color(*self.blink_color)
-            self.blink_instructions = InstructionGroup()
+        self._mapping_grid = None
+        if griddata is not None:
+            self.load_grid(griddata=griddata)
 
-        self._mapping_grid = MappingGrid(griddata=griddata)
         self._is_dragging = False
         self._selected_node = None
+        self._blink_time = time()
+
+
+    def load_grid(self, griddata):
+        self._mapping_grid = MappingGrid(griddata=griddata)
 
 
     @property
     def griddata(self):
+        if self._mapping_grid is None:
+            raise RuntimeError("Trying to access griddata before initializing one")
+
         return self._mapping_grid.griddata
 
 
     def update_canvas(self, cursor_position=None):
+        if self._mapping_grid is None:
+            return
+
         if cursor_position is None:
             cursor_position = list(Window.mouse_pos)
 
         self._cursor_position = cursor_position
-        ins = self.homography_instructions
-        ins.clear()
+        #ins = self.homography_instructions
+        canvas = self.canvas.after
+        canvas.clear()
+        canvas.add(Color(*self.line_color))
 
         # 畫出四條連接線
         p00, pw0, p0h, pwh = [list(p) for p in self._mapping_grid.corners]
         edges = [p00+pw0, pw0+pwh, pwh+p0h, p00+p0h]
         for edge in edges:
-            ins.add(Line(points=edge, width=1))
+            canvas.add(Line(points=edge, width=1))
 
         if self.disabled:
             return
@@ -129,8 +141,10 @@ class GridEditor(Widget):
             self._selected_node = self._mapping_grid.closest_node(*cursor_position)
 
         # 畫出選擇線
+        selection_line_color = self.blink_color if time() > self._blink_time else self.line_color
+        canvas.add(Color(*selection_line_color))
         selected_node = self._selected_node
-        ins.add(Line(points = cursor_position + list(selected_node.xy)))
+        canvas.add(Line(points = cursor_position + list(selected_node.xy)))
 
         # dragging 狀態下要移動頂點
         if self._is_dragging:
@@ -139,7 +153,6 @@ class GridEditor(Widget):
             cx, cy = self.drag_start_corner_pos
 
             selected_node.xy = (cx+mx-sx, cy+my-sy)
-            ins.add(Color(1, 1, 0))
 
 
     def on_touch_down(self, touch):
@@ -160,13 +173,7 @@ class GridEditor(Widget):
         x, y = self._selected_node.xy
         self._selected_node.xy = (x+dx, y+dy)
 
+        # 產生 blink 變色效果
         if blink:
-            # 畫出閃爍線
-            ins = self.blink_instructions
-            ins.add(Line(points = self._cursor_position + list(self._selected_node.xy)))
+            self._blink_time = time() + 0.1
 
-            # 0.2 秒後移除閃爍的線
-            def clear_blink(dt):
-                ins.clear()
-
-            Clock.schedule_once(clear_blink, 0.2)
