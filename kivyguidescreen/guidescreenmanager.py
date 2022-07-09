@@ -1,5 +1,5 @@
 from kivy.uix.screenmanager import ScreenManager, FadeTransition, Screen
-from kivy.properties import BooleanProperty, ListProperty, StringProperty, OptionProperty, ObjectProperty
+from kivy.properties import BooleanProperty, ListProperty, StringProperty, OptionProperty, ObjectProperty, DictProperty
 from kivy.graphics import InstructionGroup, Line, Color
 
 from kivy.utils import QueryDict
@@ -21,6 +21,7 @@ resource_add_path(pkgpath)
 
 class GuideScreenManager(ScreenManager):
 
+    guidescreens = ListProperty([])
 
     colors = QueryDict({
         'C' : [.2, .7, .7],
@@ -30,7 +31,7 @@ class GuideScreenManager(ScreenManager):
         'green': [.2, .7, .2],
     })
 
-    tempfile = StringProperty('')
+    title = StringProperty('')
 
     settings = QueryDict({})
 
@@ -45,7 +46,12 @@ class GuideScreenManager(ScreenManager):
 
     def __init__(self, **kw):
         super(GuideScreenManager, self).__init__(**kw)
-        self.tempfile = type(self).__name__ + '.json'
+
+        if self.title is None:
+            self.tempfile = type(self).__name__.lower() + '.json'
+        else:
+            Window.set_title(self.title)
+            self.tempfile = self.title.replace(' ', '').lower() + '.json'
 
         # add crosshair to mouse
         Window.bind(mouse_pos=self.on_mouse_pos)
@@ -69,6 +75,11 @@ class GuideScreenManager(ScreenManager):
 
         Window.bind(on_close=self.on_window_closed)
 
+        # 載入所有畫面，並從頭開始
+        for sc in self.guidescreens:
+            self.add_widget(sc)
+
+        self.current = self.guidescreens[0].name
 
 
     def on_window_closed(self, *arg):
@@ -249,6 +260,9 @@ class GuideScreen(Screen):
     anchor_y = OptionProperty('center', options=['top', 'center', 'bottom'])
     guide = StringProperty('')
 
+    # 變數命名設定
+    remap_vars = DictProperty({})
+
     # some handy settings
     show_cursor = BooleanProperty(True)
     accept_wallpaper = BooleanProperty(False)
@@ -257,6 +271,8 @@ class GuideScreen(Screen):
 
     def __init__(self, **kw):
         self.state = QueryDict({})
+        if 'name' not in kw:
+            kw['name'] = self.__class__.__name__.lower()
         super(GuideScreen, self).__init__(**kw)
 
     def freeze(self):
@@ -286,15 +302,17 @@ class GuideScreen(Screen):
         self.manager.current = self.manager.previous()
 
     def load_from_manager(self, varname):
+        if varname in self.remap_vars:
+            varname = self.remap_vars[varname]
         return self.manager.settings[varname]
     
     def upload_to_manager(self, overwrite=False, **kw):
-        '''
-        if not overwrite:
-            for k in kw:
-                if k in self.manager.settings:
-                    raise IndexError("Overwriting existing setting!! Do this explicitly with overwrite=True only")
-        '''
+
+        # 重訂變數名
+        for original_name in self.remap_vars:
+            new_name = self.remap_vars[original_name]
+            kw[new_name] = kw.pop(original_name)
+
         self.manager.settings.update(kw)
 
     def save_settings(self, filename):
@@ -337,6 +355,7 @@ Builder.load_string("""
 
 
 <GuideScreen>:
+    padding: 20
     canvas:
         Color:
             rgb: root.background
@@ -351,6 +370,7 @@ Builder.load_string("""
 
     AnchorLayout:
         id: guidelayer
+        padding: root.padding
         anchor_x: root.anchor_x
         anchor_y: root.anchor_y
         Label:
