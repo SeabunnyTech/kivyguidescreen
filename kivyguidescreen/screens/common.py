@@ -23,7 +23,7 @@ class SelectMonitorScreen(GuideScreen):
 
 class LoadAutoSaveScreen(GuideScreen):
 
-    def on_pre_enter(self):
+    def on_enter(self):
         if not os.path.isfile(self.manager.tempfile):
             self.goto_next_screen()
 
