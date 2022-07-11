@@ -310,6 +310,8 @@ class GuideScreen(Screen):
 
         # 重訂變數名
         for original_name in self.remap_vars:
+            if original_name not in kw:
+                continue
             new_name = self.remap_vars[original_name]
             kw[new_name] = kw.pop(original_name)
 
