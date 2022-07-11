@@ -53,10 +53,10 @@ class GuideScreenManager(ScreenManager):
             Window.set_title(self.title)
             self.tempfile = self.title.replace(' ', '').lower() + '.json'
 
-        # add crosshair to mouse
+        # draw cursor
         Window.bind(mouse_pos=self.on_mouse_pos)
         with self.canvas.after:
-            self.crosshair = InstructionGroup()
+            self.cursor_instruction = InstructionGroup()
         
         # keyboard
         self._keyboard = Window.request_keyboard(self._keyboard_closed, self)
@@ -153,15 +153,29 @@ class GuideScreenManager(ScreenManager):
 
 
     def on__subpixel_cursor(self, *args):
-        if 'show_cursor' in dir(self.current_screen) and self.current_screen.show_cursor is False:
-            self.crosshair.clear()
+        cursor = self.current_screen.cursor
+        ins = self.cursor_instruction
+        if cursor == 'hidden':
+            ins.clear()
             return
-        
+
+        # 清理上一輪畫的 cursor
         x, y = self._subpixel_cursor
-        self.crosshair.clear()
-        self.crosshair.add(Color(1, 1, 1))
-        self.crosshair.add(Line(points=[x, 0, x, Window.height], width=0.25))
-        self.crosshair.add(Line(points=[0, y, Window.width, y], width=0.25))
+        ins.clear()
+        ins.add(Color(1, 1, 1))
+
+        # 畫出 cross 類型的 cursor
+        if cursor.endswith('cross'):
+            v_points, h_points = None, None
+            if cursor.startswith('big'):
+                v_points = [x, 0, x, Window.height]
+                h_points = [0, y, Window.width, y]
+            elif cursor.startswith('tiny'):
+                v_points = [x, y-20, x, y+20]
+                h_points = [x-20, y, x+20, y]                
+
+            ins.add(Line(points=v_points, width=0.25))
+            ins.add(Line(points=h_points, width=0.25))
 
 
     def _keyboard_closed(self):
@@ -264,7 +278,7 @@ class GuideScreen(Screen):
     remap_vars = DictProperty({})
 
     # some handy settings
-    show_cursor = BooleanProperty(True)
+    cursor = OptionProperty('big cross', options=['hidden', 'big cross', 'tiny cross'])
     accept_wallpaper = BooleanProperty(False)
     autosave = BooleanProperty(True)
     numpad_as_arrows = BooleanProperty(False)
@@ -276,17 +290,17 @@ class GuideScreen(Screen):
         super(GuideScreen, self).__init__(**kw)
 
     def freeze(self):
-        self.state.update({'show_cursor' : self.show_cursor})
+        self.state.update()#{'cursor_type' : self.cursor_type})
         return self.state
 
     def unfreeze(self, state):
         self.state = QueryDict(state)
-        self.show_cursor = self.state.show_cursor
+        #self.cursor_type = self.state.cursor_type
 
     def on_arrow_pressed(self, keyname, dxdy):
         pass
 
-    def on_show_cursor(self, *args):
+    def on_cursor_type(self, *args):
         if self.manager is not None:
             self.manager.update_cursor_state()
 
