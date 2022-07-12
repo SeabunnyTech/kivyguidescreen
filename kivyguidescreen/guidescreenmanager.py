@@ -17,6 +17,7 @@ from kivy.resources import resource_add_path
 pkgpath = os.path.dirname(__file__)
 resource_add_path(pkgpath)
 
+from .utils import denumpy, renumpy
 
 
 class GuideScreenManager(ScreenManager):
@@ -116,7 +117,7 @@ class GuideScreenManager(ScreenManager):
 
 
     def load_settings(self, settings):
-        self.settings = QueryDict(settings)
+        self.settings = QueryDict(renumpy(settings))
         screen_to_go = self.get_screen(settings['current'])
         screen_to_go.unfreeze(settings['screen_state'])
         self.current = settings['current']
@@ -228,12 +229,13 @@ class GuideScreenManager(ScreenManager):
 
 
     def save_settings(self, filename):
-        self.settings.current = self.current
-        self.settings.screen_state = self.current_screen.freeze()
+        settings = self.settings
+        settings.current = self.current
+        settings.screen_state = self.current_screen.freeze()
         try:
             # could fail here
             with open(filename + '.bak', 'w') as tempfile:
-                json.dump(self.settings, tempfile, indent=4)
+                json.dump(denumpy(settings), tempfile, indent=4)
             # delete previous autosave file and replace it
             if os.path.isfile(filename):
                 os.remove(filename)
