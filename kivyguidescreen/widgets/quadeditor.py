@@ -17,8 +17,32 @@ class QuadEditor(GridEditor):
             self.load_quad(clockwise_corners=clockwise_corners)
 
 
+    def default_corners(self, offset=0):
+        of = offset
+        w, h = self.size
+        return {
+            'A' : (of, h - of),
+            'B' : (w - of, h - of),
+            'C' : (w - of, of),
+            'D' : (of, of),
+        }
+
+
+    def selected_node_description(self):
+        xy = self._selected_node.xy
+        corners = self.clockwise_corners
+        id = list(corners.keys())[list(corners.values()).index(xy)]
+        return id + ': ' + str([round(v) for v in xy])
+
+
+    def init_quad(self, corner_offset=0):
+        corners = self.default_corners(offset=corner_offset)
+        self.load_quad(corners)
+        return corners
+
+
     def load_quad(self, clockwise_corners):
-        A, B, C, D = clockwise_corners
+        A, B, C, D = [clockwise_corners[it] for it in 'ABCD']
         griddata = dict(size=(2, 2), nodes=[A, B, D, C])
         self._mapping_grid = MappingGrid(griddata=griddata)
 
@@ -30,7 +54,7 @@ class QuadEditor(GridEditor):
     @property
     def clockwise_corners(self):
         A, B, D, C = self._mapping_grid.griddata['nodes']
-        return [A, B, C, D]
+        return {it:point for it, point in zip('ABCD', [A, B, C, D])}
 
 
     @property

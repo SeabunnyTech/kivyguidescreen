@@ -2,16 +2,15 @@ from kivy.graphics import Line, Color, Point, InstructionGroup
 from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.uix.widget import Widget
-from kivy.properties import ColorProperty
-
+from kivy.properties import ColorProperty, ObjectProperty
+from kivy.clock import Clock
 
 from time import time
 
 class GridNode:
 
-    def __init__(self, xy, uv):
+    def __init__(self, xy):
         self.xy = xy
-        self.uv = uv
 
     def set_index(self, row, column):
         self._row = row
@@ -26,7 +25,7 @@ class MappingGrid:
         # 載入節點
         self._griddata = griddata
         self._gridsize = griddata['size']
-        self._nodes = nodes = [GridNode(xy=xy, uv=uv) for xy, uv in griddata['nodes']]
+        self._nodes = nodes = [GridNode(xy=xy) for xy in griddata['nodes']]
 
 
     def size(self):
@@ -47,7 +46,7 @@ class MappingGrid:
         for row in range(num_row):
             for col in range(num_col):
                 n = self.node(row, col)
-                nodes.append((n.xy, n.uv))
+                nodes.append(n.xy)
 
         return dict(size=self.size(), nodes=nodes)
 
@@ -87,8 +86,9 @@ class MappingGrid:
 class GridEditor(Widget):
 
 
-    line_color = ColorProperty('red')
-    blink_color = ColorProperty('yellow')
+    line_color = ColorProperty('yellow')
+    blink_color = ColorProperty('white')
+    render_routine = ObjectProperty(None, allownone=True)
 
     def __init__(self, griddata=None, **kw):
         super().__init__(**kw)
@@ -100,6 +100,21 @@ class GridEditor(Widget):
         self._is_dragging = False
         self._selected_node = None
         self._blink_time = time()
+
+        if not self.disabled:
+            self.render_routine = Clock.schedule_interval(self.update_canvas, 1/60)
+
+
+    def on_disabled(self, *args):
+        if self.disabled:
+            if not self.render_routine:
+                return
+            self.render_routine.cancel()
+            self.update_canvas()
+            self.render_routine = None
+        else:
+            assert self.render_routine is None
+            self.render_routine = Clock.schedule_interval(self.update_canvas, 1/60)
 
 
     def load_grid(self, griddata):
@@ -114,12 +129,15 @@ class GridEditor(Widget):
         return self._mapping_grid.griddata
 
 
-    def update_canvas(self, cursor_position=None):
+    def selected_node_description(self):
+        return str([round(v) for v in self._selected_node.xy])
+
+
+    def update_canvas(self, *dt):
         if self._mapping_grid is None:
             return
 
-        if cursor_position is None:
-            cursor_position = list(Window.mouse_pos)
+        cursor_position = list(self.to_widget(*Window.mouse_pos))
 
         self._cursor_position = cursor_position
         #ins = self.homography_instructions
@@ -145,6 +163,11 @@ class GridEditor(Widget):
         canvas.add(Color(*selection_line_color))
         selected_node = self._selected_node
         canvas.add(Line(points = cursor_position + list(selected_node.xy)))
+
+        # 顯示頂點的座標以及代號
+        label = self.ids.coord_label
+        label.pos = cursor_position
+        label.text = self.selected_node_description()
 
         # dragging 狀態下要移動頂點
         if self._is_dragging:
@@ -176,4 +199,17 @@ class GridEditor(Widget):
         # 產生 blink 變色效果
         if blink:
             self._blink_time = time() + 0.1
+
+
+
+from kivy.lang import Builder
+Builder.load_string("""
+
+<GridEditor>:
+    Label:
+        id: coord_label
+        size_hint: None, None
+        size: self.texture_size
+        color: root.blink_color
+""")
 
