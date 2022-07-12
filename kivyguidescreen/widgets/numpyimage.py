@@ -14,11 +14,14 @@ class NumpyImage(Image):
     numpy_image = ObjectProperty(None, force_dispatch=True)
     sio_image = ObjectProperty(None, force_dispatch=True)
 
-    def __init__(self, numpy_image=None, **kwargs):
+    def __init__(self, numpy_image=None, sio_image=None, **kwargs):
         super().__init__(**kwargs)
 
         if numpy_image is not None:
             self.numpy_image = numpy_image
+
+        if sio_image is not None:
+            self.sio_image = sio_image
 
 
     def on_numpy_image(self, *args):
