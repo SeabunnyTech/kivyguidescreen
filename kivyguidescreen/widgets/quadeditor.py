@@ -21,10 +21,10 @@ class QuadEditor(GridEditor):
         of = offset
         w, h = self.size
         return {
-            'A' : (of, h - of),
-            'B' : (w - of, h - of),
-            'C' : (w - of, of),
-            'D' : (of, of),
+            'A' : (of, of),
+            'B' : (of, h - of),
+            'C' : (w - of, h - of),
+            'D' : (w - of, of),
         }
 
 
