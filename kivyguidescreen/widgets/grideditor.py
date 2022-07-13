@@ -2,7 +2,7 @@ from kivy.graphics import Line, Color, Point, InstructionGroup
 from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.uix.widget import Widget
-from kivy.properties import ColorProperty, ObjectProperty
+from kivy.properties import ColorProperty, ObjectProperty, NumericProperty
 from kivy.clock import Clock
 
 from time import time
@@ -86,9 +86,10 @@ class MappingGrid:
 class GridEditor(Widget):
 
 
+    # 線條的寬度與顏色
+    line_width = NumericProperty(1)
     line_color = ColorProperty('yellow')
     blink_color = ColorProperty('white')
-    render_routine = ObjectProperty(None, allownone=True)
 
     def __init__(self, griddata=None, **kw):
         super().__init__(**kw)
@@ -101,20 +102,19 @@ class GridEditor(Widget):
         self._selected_node = None
         self._blink_time = time()
 
-        if not self.disabled:
-            self.render_routine = Clock.schedule_interval(self.update_canvas, 1/60)
+        self._render_routine = None if self.disabled else Clock.schedule_interval(self.update_canvas, 1/60)
 
 
     def on_disabled(self, *args):
         if self.disabled:
-            if not self.render_routine:
+            if not self._render_routine:
                 return
-            self.render_routine.cancel()
+            self._render_routine.cancel()
             self.update_canvas()
-            self.render_routine = None
+            self._render_routine = None
         else:
-            assert self.render_routine is None
-            self.render_routine = Clock.schedule_interval(self.update_canvas, 1/60)
+            if self._render_routine is None:
+                self._render_routine = Clock.schedule_interval(self.update_canvas, 1/60)
 
 
     def load_grid(self, griddata):
@@ -149,7 +149,7 @@ class GridEditor(Widget):
         p00, pw0, p0h, pwh = [list(p) for p in self._mapping_grid.corners]
         edges = [p00+pw0, pw0+pwh, pwh+p0h, p00+p0h]
         for edge in edges:
-            canvas.add(Line(points=edge, width=1))
+            canvas.add(Line(points=edge, width=self.line_width))
 
         if self.disabled:
             return
@@ -162,7 +162,7 @@ class GridEditor(Widget):
         selection_line_color = self.blink_color if time() > self._blink_time else self.line_color
         canvas.add(Color(*selection_line_color))
         selected_node = self._selected_node
-        canvas.add(Line(points = cursor_position + list(selected_node.xy)))
+        canvas.add(Line(points = cursor_position + list(selected_node.xy), width=self.line_width))
 
         # 顯示頂點的座標以及代號
         label = self.ids.coord_label
