@@ -43,7 +43,7 @@ class NumpyImage(Image):
         # 產生 Texture 並將 numpy array 灌進去
         texture = Texture.create(size=(h, w), colorfmt=colorfmt, bufferfmt='ubyte')
         texture.blit_buffer(img.flatten(), colorfmt=colorfmt, bufferfmt='ubyte')
-        texture.flip_vertical()
+        #texture.flip_vertical()
 
         # 把影像交給 image
         self.size = (h, w)
