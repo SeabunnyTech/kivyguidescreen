@@ -17,6 +17,10 @@ class NumpyImage(Image):
     def __init__(self, numpy_image=None, sio_image=None, **kwargs):
         super().__init__(**kwargs)
 
+        self._texture = None
+        self._resolution = None
+        self._colorfmt = None
+
         if numpy_image is not None:
             self.numpy_image = numpy_image
 
@@ -27,38 +31,52 @@ class NumpyImage(Image):
     def on_numpy_image(self, *args):
         img = self.numpy_image
 
-        # 記下各種重要資訊
-        w, h = self.shape = [img.shape[i] for i in [0, 1]]
+        # 16bit 的影像通常來自深度相機，而且它只會用到 12 bit
+        # 此時捨棄後 4bit 轉換成 8bit 灰階影像再顯示
+        if img.dtype == np.uint16:
+            img = np.uint8(img.clip(1, 4000)/16.)
 
-        # 看 shape 決定顏色格式
-        colorfmt = None
-        if len(img.shape) == 2:
-            colorfmt = 'rgb'
-            img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+        # 訂出顏色種類
+        shape = img.shape
+        h, w = shape[:2]
+        num_channels = 1 if len(shape) == 2 else shape[2]
+        colorfmt = {1:'luminance', 3:'rgb', 4:'rgba'}[num_channels]
 
-        elif len(img.shape) == 3:
-            num_channels = img.shape[2]
-            colorfmt = {3:'rgb', 4:'rgba'}[num_channels]
-
-        # 產生 Texture 並將 numpy array 灌進去
-        texture = Texture.create(size=(h, w), colorfmt=colorfmt, bufferfmt='ubyte')
-        texture.blit_buffer(img.flatten(), colorfmt=colorfmt, bufferfmt='ubyte')
-        #texture.flip_vertical()
+        # 初始化 texture
+        if self._resolution != (w, h) or self._colorfmt != colorfmt:
+            self._texture = Texture.create(size=(w, h), colorfmt=colorfmt, bufferfmt='ubyte')
+            self._texture.flip_vertical()
+            self._resolution = (w, h)
+            self._colorfmt = colorfmt
+        
+        # 將圖片填入 gpu texture
+        self._texture.blit_buffer(img.flatten(), colorfmt=colorfmt, bufferfmt='ubyte')
 
         # 把影像交給 image
-        self.size = (h, w)
-        self.texture = texture
+        self.texture = self._texture
+        self.canvas.ask_update()
+
+
+    @staticmethod
+    def find_dtype(shape, array):
+        if len(shape) == 3:
+            dtype = np.uint8
+        elif len(shape) == 2:
+            h, w = shape[0:2]
+            bytes_per_pixel = len(array) / (h * w)
+
+            if bytes_per_pixel == 1:
+                dtype = np.uint8
+            elif bytes_per_pixel == 2:
+                dtype = np.uint16
+
+        return dtype
 
 
     def on_sio_image(self, *args):
-        img_var = self.sio_image
-        shape = img_var['shape']
-        array = img_var['array']
-        if len(shape) == 3:
-            npimage = np.frombuffer(array, dtype=np.uint8).reshape(*shape)
-        elif len(shape) == 2:
-            npimage = np.frombuffer(array, dtype=np.uint16).reshape(*shape)
-
-        self.numpy_image = npimage
-
+        img = self.sio_image
+        shape = img['shape']
+        array = img['array']
+        dtype = NumpyImage.find_dtype(shape, array)
+        self.numpy_image = npimage = np.frombuffer(array, dtype=dtype).reshape(*shape)
 
