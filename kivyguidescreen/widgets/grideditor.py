@@ -155,7 +155,8 @@ class GridEditor(Widget):
 
 
     def selected_node_description(self):
-        return str([round(v, 2) for v in self._selected_node.xy])
+        node = self._selected_node
+        return 'P{pos}: '.format(pos=node.pos) + str(tuple([round(v, 2) for v in node.xy]))
 
 
     def update_canvas(self, *dt):
