@@ -76,6 +76,16 @@ class Grid:
 
 
     @property
+    def node_coords(self):
+        num_row, num_col = self.shape
+        node_dict = {}
+        for row in range(num_row):
+            for col in range(num_col):
+                node_dict[(row, col)] = self.node(row, col).xy
+        return node_dict
+
+
+    @property
     def griddata(self):
         return dict(shape=self.shape, coords=[node.xy for node in self._nodes])
 
@@ -106,16 +116,16 @@ class GridEditor(Widget):
     line_color = ColorProperty('yellow')
     blink_color = ColorProperty('white')
 
-    def __init__(self, shape=None, nodes=None, **kw):
+    def __init__(self, shape=None, coords=None, **kw):
         super().__init__(**kw)
 
         # 選擇載入 / 新增 或者只產生空的 Grid
         self._grid = None
         if shape is not None:
-            if nodes is not None:
-                self._load_grid(shape=shape, nodes=nodes)
+            if coords is not None:
+                self.load_grid(shape=shape, coords=coords)
             else:
-                self._init_grid(shape)
+                self.init_grid(shape)
 
         self._is_dragging = False
         self._selected_node = None
