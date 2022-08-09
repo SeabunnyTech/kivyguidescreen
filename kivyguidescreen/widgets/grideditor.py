@@ -76,7 +76,7 @@ class Grid:
 
 
     @property
-    def node_coords(self):
+    def node_dict(self):
         num_row, num_col = self.shape
         node_dict = {}
         for row in range(num_row):
