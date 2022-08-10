@@ -4,7 +4,7 @@ from kivy.graphics.texture import Texture
 import cv2
 import numpy as np
 
-from kivy.properties import NumericProperty, ObjectProperty, StringProperty
+from kivy.properties import NumericProperty, ObjectProperty, StringProperty, BooleanProperty
 from kivy.uix.relativelayout import RelativeLayout
 
 
@@ -13,6 +13,9 @@ class NumpyImage(Image):
     
     numpy_image = ObjectProperty(None, force_dispatch=True)
     sio_image = ObjectProperty(None, force_dispatch=True)
+
+    vertical_flip = BooleanProperty(False)
+    horizontal_flip = BooleanProperty(False)
 
     def __init__(self, numpy_image=None, sio_image=None, **kwargs):
         super().__init__(**kwargs)
@@ -45,7 +48,10 @@ class NumpyImage(Image):
         # 初始化 texture
         if self._resolution != (w, h) or self._colorfmt != colorfmt:
             self._texture = Texture.create(size=(w, h), colorfmt=colorfmt, bufferfmt='ubyte')
-            self._texture.flip_vertical()
+            if self.vertical_flip:
+                self._texture.flip_vertical()
+            if self.horizontal_flip:
+                self._texture.flip_horizontal()
             self._resolution = (w, h)
             self._colorfmt = colorfmt
         
