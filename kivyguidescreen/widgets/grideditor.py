@@ -75,6 +75,15 @@ class Grid:
         return self._nodes[column + num_cols * row]
 
 
+    def coords(self, dtype):
+        import numpy as np
+        coords = [node.xy for node in self._nodes]
+        if dtype == list:
+            return coords
+        else:
+            return np.array(coords, dtype=dtype)
+
+
     @property
     def node_dict(self):
         num_row, num_col = self.shape
