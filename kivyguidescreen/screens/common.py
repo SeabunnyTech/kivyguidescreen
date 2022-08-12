@@ -1,23 +1,118 @@
 import os
 import json
 
+from kivy.utils import QueryDict
+from kivy.clock import Clock
 from kivy.core.window import Window
+
 from .. import GuideScreenManager, GuideScreen
 
 
-class SelectMonitorScreen(GuideScreen):
 
-    def on_touch_down(self, touch):
-        self.fullscreen_and_next()
+class SetupScreen(GuideScreen):
+
+
+    def load_option(self, option):
+    
+        data = option['data']
+    
+        def setup_projector():
+            self.manager.wallpaper = None
+            from kivy.core.window import Window
+            x, y = data['x'], data['y']
+            Window.fullscreen = False
+            Window.left = x
+            Window.top = y
+            self.upload_to_manager(windowsize=[data.w, data.h])
+            def fullscreen(dt):
+                Window.fullscreen = 'auto'
+            Clock.schedule_once(fullscreen, 0.1)
+
+        def setup_kinectv2():
+            from irview import KinectV2IRView
+            if '_kinect_ir_view' not in dir(self):
+                self._kinect_ir_view = KinectV2IRView(size_hint=[None, None], size=[1024, 848])
+                self._kinect_ir_view.start()
+            self.manager.wallpaper = self._kinect_ir_view
+
+        func = dict(
+            kinectv2=setup_kinectv2,
+            projector=setup_projector,
+        )[data['device_type']]
+
+        func()
+        
+
+
+    def generate_monitor_options(self):
+        from screeninfo import get_monitors
+        options = []
+
+        for m in get_monitors():
+            data = QueryDict(
+                device_type='projector',
+                resolution=[m.width, m.height],
+                w=m.width,
+                h=m.height,
+                x=m.x,
+                y=m.y,
+            )
+            guidetext = '將視窗移至顯示器 {name}  w={w}, h={h}  @  x={x}, y={y}'.format(
+                name=m.name.split('\\')[-1],
+                **data
+            )
+            options.append(QueryDict(
+                guidetext=guidetext,
+                data=data,
+            ))
+
+        return options
+
+
+    def generate_kinectv2_options(self):
+
+        return [
+            QueryDict(
+                guidetext='Kinect V2',
+                data=dict(
+                    device_type='kinectv2',
+                    resolution=[512, 424],
+                ),
+            )
+        ]
+
+
+    @property
+    def options(self):
+        options = []
+        options += self.generate_monitor_options()
+        #options += self.generate_kinectv2_options()
+        
+        ret_options = {}
+        for idx, opt in enumerate(options):
+            key = str(idx+1)
+            ret_options[key] = opt
+        return ret_options
+
+
+    def on_enter(self):
+        self.ids.guidelabel.halign = 'left'
+        self.guide = '請輸入數字選擇校正的目標:\n\n'
+        for key, opt in self.options.items():
+            self.guide += '   ' + key + ' : ' + opt.guidetext + '\n'
+
 
     def on_key_down(self, keyname, modifiers):
-        self.fullscreen_and_next()
+        options = self.options
+        if keyname.isdigit():
+            if keyname in options:
+                opt = options[keyname]
+                self.load_option(opt)
+                self.upload_to_manager(calibrate_option=opt.data)
 
-    def fullscreen_and_next(self):
-        Window.fullscreen = 'auto'
-        self.manager.settings.window_size = Window.size
+
+    def on_press_enter(self):
         self.goto_next_screen()
-
 
 
 
@@ -51,11 +146,10 @@ Builder.load_string("""
 #:import Window kivy.core.window.Window
 
 
-<SelectMonitorScreen>:
-    background: {colors.M}
-    guide: '將這個視窗拖曳至投影上，用滑鼠點選任意處進入全螢幕'
+<SetupScreen>:
+    show_cursor: False
+    #background: {colors.Y}
     autosave: False
-
 
 
 <LoadAutoSaveScreen>:
