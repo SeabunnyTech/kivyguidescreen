@@ -7,14 +7,26 @@ from scipy.optimize import fsolve
 
 class PerspectiveTransform():
 
-    def __init__(self, matrix):
-        self.matrix = matrix
+    def __init__(self, matrix=None, point_pairs=None, src_points=None, dst_points=None):
+        vars = [matrix, point_pairs, src_points]
+        assert vars.count(None) == len(vars) - 1, '三種定義方式只能使用其中之一'
+
+        if matrix:
+            self._matrix = matrix
+
+        if point_pairs:
+            # point pairs come in this form [[p1, p1'], [p2, p2'], ...] and p are just [x, y]
+            src_points, dst_points = zip(*point_pairs)
+
+        # 轉成 float32 產生 homography
+        src_points, dst_points = np.float32(src_points), np.float32(dst_points)
+        self._matrix, mask = cv2.findHomography(srcPoints=src_points, dstPoints=dst_points)
 
 
     def apply(self, xy):
         
         pts = np.float32(xy).reshape(1, -1, 2)
-        transform = np.float32(self.matrix)
+        transform = np.float32(self._matrix)
 
         ret = cv2.perspectiveTransform(pts, transform).reshape(-1, 2)
         if ret.size == 2:
@@ -58,10 +70,12 @@ def sort_table_corners(corners):
     return sorted_corners_uv
 
 
-def sovle_projector_heading(\
+def solve_projector_heading(\
     lens_center_xyz,
     table_corners_xy,
-    table_corners_uv):
+    table_corners_uv,
+    projector_resolution
+    ):
     
     '''
     變數名稱規範:
@@ -98,13 +112,21 @@ def sovle_projector_heading(\
     # 投影機鏡心座標
     P = np.array(lens_center_xyz)
 
+    # 投影座標極值 = 解析度 - 1
+    pj_max_x = projector_resolution[0] - 1
+    pj_max_y = projector_resolution[1] - 1
+
     # 桌面角落座標
-    table_corners_xy = np.array(sort_table_corners(table_corners_xy))
-    Tnp, Tnn, Tpn, Tpp = np.array([[x, y, 0] for x, y in table_corners_xy])
+    #table_corners_xy = np.array(sort_table_corners(table_corners_xy))
+    #Tnp, Tnn, Tpn, Tpp = np.array([[x, y, 0] for x, y in table_corners_xy])
+    table_corners_xy = np.array(table_corners_xy)
+    Tnn, Tpn, Tpp, Tnp = np.array([[x, y, 0] for x, y in table_corners_xy]) 
 
     # 桌面角落的螢幕座標
-    table_corners_uv = np.array(sort_table_corners(table_corners_uv))
-    Tnp_uv, Tnn_uv, Tpn_uv, Tpp_uv = [np.array(uv) for uv in table_corners_uv]
+    #table_corners_uv = np.array(sort_table_corners(table_corners_uv))
+    #Tnp_uv, Tnn_uv, Tpn_uv, Tpp_uv = [np.array(uv) for uv in table_corners_uv]
+    table_corners_uv = np.array(table_corners_uv)
+    Tnn_uv, Tpn_uv, Tpp_uv, Tnp_uv = [np.array(uv) for uv in table_corners_uv]
 
     screen_to_table_transform, mask = cv2.findHomography(
         srcPoints = table_corners_uv,
@@ -122,12 +144,12 @@ def sovle_projector_heading(\
 
 
     ####### 計算四邊長上下邊的差除以和以及左右邊的差除以和##########
-    
+
     def nddns(vec1, vec2):
         # norm difference divided by norm sum
         len1, len2 = norm(vec1), norm(vec2)
         return (len1- len2) / (len1 + len2)
-    
+
     # 計算桌面 高 度在螢幕 左右 的差除以和
     #            (pp    -  pn)    (np    -  nn)
     dh_x = nddns(Tpp_uv - Tpn_uv, Tnp_uv - Tnn_uv)
@@ -135,7 +157,7 @@ def sovle_projector_heading(\
     # 計算桌面 寬 度在螢幕 上下 的差除以和
     #            (pp    -  np)     (pn    -  nn)
     dw_y = nddns(Tpp_uv - Tnp_uv, Tpn_uv - Tnn_uv)
-    
+
     ################################################################
 
     def project_to_virtual_screen(table_xyz, N):
@@ -172,9 +194,11 @@ def sovle_projector_heading(\
     dx, dy = fsolve(rect_distortion, x0=(0,0))
     Zp = -np.float32([dx, dy, 1])
 
-    # 投影區域的底邊向量平行 x 軸
-    Vpn = project_to_virtual_screen_from_uv([1023, 0], N=Zp)
-    Vnn = project_to_virtual_screen_from_uv([0, 0], N=Zp)
+    # 投影區域 (或相機區域) 的底邊向量平行 x 軸
+    Vpn_uv = [pj_max_x, 0]
+    Vnn_uv = [0, 0]
+    Vpn = project_to_virtual_screen_from_uv(Vpn_uv, N=Zp)
+    Vnn = project_to_virtual_screen_from_uv(Vnn_uv, N=Zp)
     Xp = Vpn - Vnn
 
     # Unreal 使用左手座標系, y = x cross z
@@ -182,24 +206,25 @@ def sovle_projector_heading(\
     Xp, Yp, Zp = [vec / norm(vec) for vec in [Xp, Yp, Zp]]
 
     ####################################### Rotation Axies
-    front, right, up = Zp, Xp, Yp
+    forward, right, up = Zp, Xp, Yp
 
     ############### find fov
     vP = project_to_virtual_screen(P, N=Zp)
     len_P_vP = norm(P - vP)
     fov = len_P_vP / norm((Vpn - Vnn) / 2)
 
-    ############### find cx, cy        
-    Vcc = project_to_virtual_screen_from_uv([1023/2, 767/2], N=Zp)
+    ############### find cx, cy
+    Vcc = project_to_virtual_screen_from_uv([pj_max_x/2, pj_max_y/2], N=Zp)
     cxcy = (vP - Vcc) / len_P_vP
     cx, cy = cxcy.dot(Xp), cxcy.dot(Yp)
     cx, cy = cx * fov , cy * fov
 
     ################ Unreal-ize and de-numpy (to make variables json-serializable)
-    P = P * 10
+    #P = P * 10
+    '''
     vecs = dict(
         lens_center=P,
-        front=front,
+        forward=forward,
         right=right,
         up=up
     )
@@ -222,5 +247,59 @@ def sovle_projector_heading(\
     report = {}
     report.update(vars)
     report.update(vecs)
+    report['resolution'] = projector_resolution
 
     return report
+    '''
+    
+    report = dict(
+        lens_center=P,
+        forward=forward,
+        right=right,
+        up=up,
+        fov=fov,
+        x_offset=cx,
+        y_offset=cy,
+        resolution=projector_resolution
+    )
+    return report
+
+
+def unrealize(pinhole_device_parameters):
+
+    param = pinhole_device_parameters.copy()
+    param['lens_center'] = param['lens_center'] * 10
+    for it in ['lens_center', 'forward', 'right', 'up']:
+        v = param[it]
+        new_vec = v[1], v[0], v[2]
+        param[it] = [float(v) for v in new_vec]
+
+    return param
+
+
+
+def reproject(points, report):
+    lens_center, forward, right, up, fov, cx, cy, res =\
+        [report[it] for it in ['lens_center', 'forward', 'right', 'up', 'fov', 'x_offset', 'y_offset', 'resolution']]
+
+    p2d = []
+    for point in points:
+        vec = np.array(point) - lens_center
+        vx, vy, vz = [np.dot(vec, unit) for unit in [right, up, forward]]
+        ux, uy = vx/vz*fov+cx, vy/vz*fov+cy
+
+        px, py = ux * res[0]/2+ res[0]/2, uy * res[0]/2 + res[1]/2
+        p2d.append([px, py])
+
+    return p2d
+
+
+def opencv_camera_matrix_from_report(report):
+    lens_center, forward, right, up, fov, cx, cy, res =\
+        [report[it] for it in ['lens_center', 'forward', 'right', 'up', 'fov', 'x_offset', 'y_offset', 'resolution']]
+
+    camera_matrix = [[res[0] / 2 * fov,                 0,  cx * res[0] / 2 + res[0] / 2],
+                     [               0,  res[0] / 2 * fov,  cy * res[0] / 2 + res[1] / 2],
+                     [               0,                 0,                             1]]
+    return np.array(camera_matrix, dtype=np.float32)
+
