@@ -10,14 +10,12 @@ import json
 from kivy.core.window import Window
 from kivy.base import stopTouchApp
 
-Window.show_cursor = False
-
 # set traditional chinese font
 from kivy.resources import resource_add_path
 pkgpath = os.path.dirname(__file__)
 resource_add_path(pkgpath)
 
-from .utils import denumpy, renumpy
+from .utils.denumpy import denumpy, renumpy
 
 
 class GuideScreenManager(ScreenManager):
@@ -47,6 +45,7 @@ class GuideScreenManager(ScreenManager):
 
     def __init__(self, **kw):
         super(GuideScreenManager, self).__init__(**kw)
+        Window.show_cursor = False
 
         if self.title is None:
             self.tempfile = type(self).__name__.lower() + '.json'
@@ -365,11 +364,9 @@ class GuideScreen(Screen):
 from kivy.lang import Builder
 Builder.load_string("""
 
-<Label, Button, TextInput>:
+<Label>:
     font_name: 'fonts/NotoSansCJKtc-Regular.otf'
     markup: True
-    font_size: '20sp'
-    halign: 'center'
 
 
 <GuideScreen>:
@@ -396,6 +393,9 @@ Builder.load_string("""
             size_hint: None, None
             size: self.texture_size
             anchor_y: 'top'
+
+            font_size: '20sp'
+            halign: 'center'
             color: [0, 0, 0] if sum(root.background) > 1.5 else [1, 1, 1]
             text: root.guide
 
