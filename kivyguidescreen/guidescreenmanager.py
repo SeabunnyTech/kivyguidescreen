@@ -319,7 +319,10 @@ class GuideScreen(Screen):
     def load_from_manager(self, varname):
         if varname in self.remap_vars:
             varname = self.remap_vars[varname]
-        return self.manager.settings[varname]
+        var = self.manager.settings[varname]
+        if isinstance(var, dict):
+            var = QueryDict(var)
+        return var
     
     def upload_to_manager(self, overwrite=False, **kw):
 
