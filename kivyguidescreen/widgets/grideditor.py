@@ -136,13 +136,13 @@ class GridEditor(Widget):
         self._is_dragging = False
 
 
-    def move_selection(self, dxdy, blink=True):
+    def move_selection(self, dxdy, scale=1.0, blink=True):
         if self._is_dragging:
             return
 
         dx, dy = dxdy
         x, y = self._selected_node.xy
-        self._selected_node.xy = (x+dx, y+dy)
+        self._selected_node.xy = (x + dx * scale, y + dy * scale)
 
         # 產生 blink 變色效果
         if blink:
