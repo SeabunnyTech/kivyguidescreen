@@ -11,17 +11,22 @@ class Node:
 
 class Grid:
 
-    def __init__(self, shape=None, coords=None, **kw):
-        if shape is not None:
-            if coords is not None:
-                if kw != {}:
-                    raise RuntimeError("No parameters are expected when \"coords\" are specified: " + str(**kw) + "")
-                self.load(shape, coords)
-            else:
-                self.init(shape, **kw)
+    def __init__(self, shape=None, coords=None):
+        if None not in [shape, coords]:
+            self.load(shape, coords)
+            return
+
+        if coords is None:
+            self.init(shape=shape)
+            return
+
+        if shape is None:
+            self.load(coords=coords)
 
 
-    def load(self, shape, coords):
+    def load(self, coords, shape=None):
+        if shape is None:
+            shape = [1, len(coords)]
         num_rows, num_cols = self._shape = shape
         assert num_rows * num_cols == len(coords)
 
@@ -35,13 +40,14 @@ class Grid:
 
     def init(self, shape, pos=[0, 0], size=[100, 100]):
         num_rows, num_cols = shape
-        if num_rows < 2 or num_cols < 2:
-            raise ValueError("At least 2 rows and 2 columns are expected")
+        if num_rows < 1 or num_cols < 1:
+            raise ValueError("At least 1 rows and 1 columns are expected")
 
         # 計算每個頂點的水平和垂直間隔
         w, h = size
-        row_step = h / (num_rows - 1)
-        col_step = w / (num_cols - 1)
+
+        row_step = h / (num_rows - 1) if num_rows > 1 else 0
+        col_step = w / (num_cols - 1) if num_cols > 1 else 0
 
         # 計算並加入每個節點的座標
         coords = []
