@@ -2,7 +2,7 @@ from kivy.graphics import Line, Color, Point, InstructionGroup
 from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.uix.widget import Widget
-from kivy.properties import ColorProperty, ObjectProperty, NumericProperty
+from kivy.properties import ColorProperty, ObjectProperty, NumericProperty, BooleanProperty
 from kivy.clock import Clock
 
 from time import time
@@ -16,9 +16,14 @@ class GridEditor(Widget):
     init_corner_offset = NumericProperty(100)
 
     # 線條的寬度與顏色
+    draw_line = BooleanProperty(True)
     line_width = NumericProperty(1)
     line_color = ColorProperty('yellow')
     blink_color = ColorProperty('white')
+
+    # 節點的標示
+    draw_nodes = BooleanProperty(False)
+    cross_diameter = NumericProperty(80)
 
     def __init__(self, shape=None, coords=None, **kw):
         super().__init__(**kw)
@@ -56,7 +61,7 @@ class GridEditor(Widget):
         self._grid = Grid(shape=shape, pos=[of, of], size=[w-2*of, h-2*of])
 
 
-    def load_grid(self, shape, coords):
+    def load_grid(self, coords, shape=None):
         self._grid = Grid(shape=shape, coords=coords)
 
 
@@ -86,18 +91,30 @@ class GridEditor(Widget):
         canvas.clear()
         canvas.add(Color(*self.line_color))
 
-        # 所有的橫格線
-        row_num, col_num = grid.shape
-        for row in range(row_num):
-            for col in range(col_num - 1):
-                points = grid.node(row, col).xy + grid.node(row, col+1).xy
-                canvas.add(Line(points=points, width=self.line_width))
+        def line(points):
+            canvas.add(Line(points=points, width=self.line_width))
 
-        # 直格線
-        for row in range(row_num - 1):
-            for col in range(col_num):
-                points = grid.node(row, col).xy + grid.node(row+1, col).xy
-                canvas.add(Line(points=points, width=self.line_width))
+        if self.draw_line:
+
+            # 所有的橫格線
+            row_num, col_num = grid.shape
+            for row in range(row_num):
+                for col in range(col_num - 1):
+                    points = grid.node(row, col).xy + grid.node(row, col+1).xy
+                    line(points)
+
+            # 直格線
+            for row in range(row_num - 1):
+                for col in range(col_num):
+                    points = grid.node(row, col).xy + grid.node(row+1, col).xy
+                    line(points)
+
+        if self.draw_nodes:
+            r = self.cross_diameter / 2
+            for point in grid.coords():
+                u,v = point
+                line(points=[u-r, v, u+r, v])
+                line(points=[u, v-r, u, v+r])
 
         if self.disabled:
             return
@@ -110,7 +127,7 @@ class GridEditor(Widget):
         selection_line_color = self.blink_color if time() > self._blink_time else self.line_color
         canvas.add(Color(*selection_line_color))
         selected_node = self._selected_node
-        canvas.add(Line(points = cursor_position + list(selected_node.xy), width=self.line_width))
+        line(points = cursor_position + list(selected_node.xy))
 
         # 顯示頂點的座標以及代號
         label = self.ids.coord_label
