@@ -22,16 +22,17 @@ class SelectArduinoPortScreen(GuideScreen):
         super().on_pre_leave()
 
 
+    def on_press_enter(self):
+        self.upload_to_manager(arduino_guage_port=None)
+        self.goto_next_screen()
+
+
     def monitor_ports(self, dt=0):
         listportinfo = list_ports.comports()
         num_ports = len(listportinfo)
 
         if num_ports == 0:
             self.guide = "請將校正器的 USB 線插上電腦"
-        elif num_ports == 1:
-            port, desc, hwid= listportinfo[0]
-            self.upload_to_manager(arduino_guage_port=port)
-            self.goto_next_screen()
         else:
             str_portsinfo = ''
             self.port_options = {}
@@ -40,7 +41,7 @@ class SelectArduinoPortScreen(GuideScreen):
                 str_portsinfo += "{index}.  {port}:   {desc}\n\n".format(index=index+1, port=port, desc=desc)
                 self.port_options[str(index+1)] = port
                 
-            self.guide = "請輸入數字選擇校正器所在的埠口:\n\n{str_portsinfo}".format(str_portsinfo=str_portsinfo)
+            self.guide = "請輸入數字選擇校正器所在的埠口:\n\n{str_portsinfo}\n\n或者按下 Enter 跳過".format(str_portsinfo=str_portsinfo)
 
 
     def on_key_down(self, keyname, modifiers):
