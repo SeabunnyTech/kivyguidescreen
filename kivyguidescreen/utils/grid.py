@@ -13,7 +13,7 @@ class Grid:
 
     def __init__(self, shape=None, coords=None):
         if None not in [shape, coords]:
-            self.load(shape, coords)
+            self.load(shape=shape, coords=coords)
             return
 
         if coords is None:
@@ -27,6 +27,7 @@ class Grid:
     def load(self, coords, shape=None):
         if shape is None:
             shape = [1, len(coords)]
+
         num_rows, num_cols = self._shape = shape
         assert num_rows * num_cols == len(coords)
 
