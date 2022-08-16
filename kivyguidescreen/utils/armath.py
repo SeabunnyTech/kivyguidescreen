@@ -8,8 +8,8 @@ from scipy.optimize import fsolve
 class PerspectiveTransform():
 
     def __init__(self, matrix=None, point_pairs=None, src_points=None, dst_points=None):
-        vars = [matrix, point_pairs, src_points]
-        assert vars.count(None) == len(vars) - 1, '三種定義方式只能使用其中之一'
+        vars = [matrix is None, point_pairs is None, src_points is None]
+        assert vars.count(True) == len(vars) - 1, '三種定義方式只能使用其中之一'
 
         if matrix:
             self._matrix = matrix
