@@ -12,7 +12,7 @@ class Node:
 class Grid:
 
     def __init__(self, shape=None, coords=None):
-        if None not in [shape, coords]:
+        if True not in [shape is None, coords is None]:
             self.load(shape=shape, coords=coords)
             return
 
