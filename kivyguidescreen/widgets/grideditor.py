@@ -72,6 +72,12 @@ class GridEditor(Widget):
 
         return self._grid.griddata
 
+    @property
+    def node_dict(self):
+        if self._grid is None:
+            raise RuntimeError("Trying to access griddata before initializing one")
+
+        return self._grid.node_dict
 
     def selected_node_description(self):
         node = self._selected_node
