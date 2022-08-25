@@ -34,7 +34,8 @@ class GuideScreenManager(ScreenManager):
 
     settings = QueryDict({})
 
-    _subpixel_cursor = ListProperty([0, 0])
+    cursor_offset = ListProperty([0, 0])
+    subpixel_cursor = ListProperty([0, 0])
 
     wallpaper = ObjectProperty(None, allownone=True)
 
@@ -54,7 +55,7 @@ class GuideScreenManager(ScreenManager):
             self.tempfile = self.title.replace(' ', '').lower() + '.json'
 
         # draw cursor
-        Window.bind(mouse_pos=self.on_mouse_pos)
+        Window.bind(mouse_pos=self.update_cursor_state)
         with self.canvas.after:
             self.cursor_instruction = InstructionGroup()
         
@@ -65,6 +66,7 @@ class GuideScreenManager(ScreenManager):
         # binds
         self.bind(current=self.update_cursor_state)
         self.bind(on_enter=self.update_cursor_state)
+        self.bind(cursor_offset=self.update_cursor_state)
 
         # switch to first screen
         self.transition = FadeTransition(duration=0.1)
@@ -141,18 +143,12 @@ class GuideScreenManager(ScreenManager):
 
 
     def update_cursor_state(self, *args):
-        self.on_mouse_pos(None, Window.mouse_pos)
-
-    @property
-    def subpixel_cursor(self):
-        return self._subpixel_cursor[:]
+        dx, dy = self.cursor_offset
+        mouse_x, mouse_y = Window.mouse_pos
+        self.subpixel_cursor = [mouse_x + dx, mouse_y + dy]
 
 
-    def on_mouse_pos(self, caller, pos):
-        self._subpixel_cursor[:] = pos
-
-
-    def on__subpixel_cursor(self, *args):
+    def on_subpixel_cursor(self, *args):
         cursor = self.current_screen.cursor
         ins = self.cursor_instruction
         if cursor == 'hidden':
@@ -160,7 +156,7 @@ class GuideScreenManager(ScreenManager):
             return
 
         # 清理上一輪畫的 cursor
-        x, y = self._subpixel_cursor
+        x, y = self.subpixel_cursor
         ins.clear()
         ins.add(Color(1, 1, 1))
 
@@ -203,8 +199,8 @@ class GuideScreenManager(ScreenManager):
 
         if keyname in ['up', 'down', 'left', 'right']:
             dx, dy = mouse_dxdy[keyname]
-            px, py = self._subpixel_cursor
-            self._subpixel_cursor[:] = px + dx*0.25, py + dy*0.25
+            px, py = self.cursor_offset
+            self.cursor_offset = [px + dx*0.25, py + dy*0.25]
             if 'on_press_arrow' in dir(self.current_screen):
                 self.current_screen.on_press_arrow(keyname=keyname, dxdy=[dx, dy])
             return True
