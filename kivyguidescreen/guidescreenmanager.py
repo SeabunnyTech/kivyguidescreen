@@ -268,6 +268,7 @@ class GuideScreenManager(ScreenManager):
             self.current_screen.set_wallpaper(wallpaper)
 
 
+from .behaviors import SwitchMonitorBehavior
 
 
 class GuideScreen(Screen, SwitchMonitorBehavior):
@@ -286,6 +287,7 @@ class GuideScreen(Screen, SwitchMonitorBehavior):
     cursor = OptionProperty('big cross', options=['hidden', 'big cross', 'tiny cross'])
     
     # 行為控制
+    switch_monitor_by_digitkey = BooleanProperty(False)
     accept_wallpaper = BooleanProperty(False)
     autosave = BooleanProperty(True)
     numpad_as_arrows = BooleanProperty(False)

@@ -2,14 +2,12 @@ import os
 import json
 
 from kivy.utils import QueryDict
-from kivy.clock import Clock
-from kivy.core.window import Window
 
 from .. import GuideScreenManager, GuideScreen
+from ..behaviors import SwitchMonitorBehavior
 
 
-
-class SetupScreen(GuideScreen):
+class SetupScreen(GuideScreen, SwitchMonitorBehavior):
 
 
     def load_option(self, option):
@@ -17,16 +15,7 @@ class SetupScreen(GuideScreen):
         data = option['data']
     
         def setup_projector():
-            self.manager.wallpaper = None
-            from kivy.core.window import Window
-            x, y = data['x'], data['y']
-            Window.fullscreen = False
-            Window.left = x
-            Window.top = y
-            self.upload_to_manager(windowsize=[data.w, data.h])
-            def fullscreen(dt):
-                Window.fullscreen = 'auto'
-            Clock.schedule_once(fullscreen, 0.1)
+            self.switch_to_monitor(data.monitor_info)
 
         def setup_kinectv2():
             from irview import KinectV2IRView
@@ -45,22 +34,14 @@ class SetupScreen(GuideScreen):
 
 
     def generate_monitor_options(self):
-        from screeninfo import get_monitors
         options = []
 
-        for m in get_monitors():
+        for m in self.monitor_options:
             data = QueryDict(
                 device_type='projector',
-                resolution=[m.width, m.height],
-                w=m.width,
-                h=m.height,
-                x=m.x,
-                y=m.y,
+                monitor_info=m,
             )
-            guidetext = '將視窗移至顯示器 {name}  w={w}, h={h}  @  x={x}, y={y}'.format(
-                name=m.name.split('\\')[-1],
-                **data
-            )
+            guidetext = '將視窗移至顯示器 {name}  w={w}, h={h}  @  x={x}, y={y}'.format(name=m.name.split('\\')[-1], w=m.width, h=m.height, x=m.x, y=m.y)
             options.append(QueryDict(
                 guidetext=guidetext,
                 data=data,
@@ -142,9 +123,6 @@ class LoadAutoSaveScreen(GuideScreen):
 
 from kivy.lang import Builder
 Builder.load_string("""
-
-#:import Window kivy.core.window.Window
-
 
 <SetupScreen>:
     show_cursor: False
