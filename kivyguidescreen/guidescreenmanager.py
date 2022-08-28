@@ -54,19 +54,18 @@ class GuideScreenManager(ScreenManager):
             Window.set_title(self.title)
             self.tempfile = self.title.replace(' ', '').lower() + '.json'
 
-        # draw cursor
-        Window.bind(mouse_pos=self.update_cursor_state)
-        with self.canvas.after:
-            self.cursor_instruction = InstructionGroup()
-        
         # keyboard
         self._keyboard = Window.request_keyboard(self._keyboard_closed, self)
         self._keyboard.bind(on_key_down=self._on_keyboard_down)
 
-        # binds
-        self.bind(current=self.update_cursor_state)
-        self.bind(on_enter=self.update_cursor_state)
-        self.bind(cursor_offset=self.update_cursor_state)
+        # cursor things
+        with self.canvas.after:
+            self.cursor_instruction = InstructionGroup()
+
+        self.bind(current=self._draw_cursor)
+        self.bind(on_enter=self._draw_cursor)
+        self.bind(cursor_offset=self._move_cursor)
+        Window.bind(mouse_pos=self._move_cursor)
 
         # switch to first screen
         self.transition = FadeTransition(duration=0.1)
@@ -142,13 +141,17 @@ class GuideScreenManager(ScreenManager):
             raise NotImplementedError
 
 
-    def update_cursor_state(self, *args):
+    def _move_cursor(self, *args):
         dx, dy = self.cursor_offset
         mouse_x, mouse_y = Window.mouse_pos
         self.subpixel_cursor = [mouse_x + dx, mouse_y + dy]
 
 
     def on_subpixel_cursor(self, *args):
+        self._draw_cursor()
+
+
+    def _draw_cursor(self, *args):
         cursor = self.current_screen.cursor
         ins = self.cursor_instruction
         if cursor == 'hidden':
@@ -204,6 +207,10 @@ class GuideScreenManager(ScreenManager):
             if 'on_press_arrow' in dir(self.current_screen):
                 self.current_screen.on_press_arrow(keyname=keyname, dxdy=[dx, dy])
             return True
+        elif self.current_screen.switch_monitor_by_digitkey and keyname in '123456789':
+            screen = self.current_screen
+            target_monitor = screen.monitor_options[int(keyname) - 1]
+            screen.switch_to_monitor(target_monitor)
         else:
             mapping = {'enter':'on_press_enter', 'backspace':'undo', 'spacebar':'on_press_space', 'tab':'on_press_tab'}
 
@@ -262,7 +269,8 @@ class GuideScreenManager(ScreenManager):
 
 
 
-class GuideScreen(Screen):
+
+class GuideScreen(Screen, SwitchMonitorBehavior):
 
     background = ListProperty([0, 0, 0])
 
@@ -274,16 +282,20 @@ class GuideScreen(Screen):
     # 變數命名設定
     remap_vars = DictProperty({})
 
-    # some handy settings
+    # 外觀
     cursor = OptionProperty('big cross', options=['hidden', 'big cross', 'tiny cross'])
+    
+    # 行為控制
     accept_wallpaper = BooleanProperty(False)
     autosave = BooleanProperty(True)
     numpad_as_arrows = BooleanProperty(False)
 
-    def __init__(self, **kw):
+    def __init__(self, tag=None, **kw):
         self.state = QueryDict({})
         if 'name' not in kw:
             kw['name'] = self.__class__.__name__.lower()
+            if tag:
+                kw['name'] += '-' + tag
         super(GuideScreen, self).__init__(**kw)
 
     def freeze(self):
