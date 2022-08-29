@@ -11,17 +11,12 @@ class Node:
 
 class Grid:
 
-    def __init__(self, shape=None, coords=None):
-        if True not in [shape is None, coords is None]:
+    def __init__(self, shape=None, coords=None, pos=[0, 0], size=[100, 100]):
+        if coords is not None:
             self.load(shape=shape, coords=coords)
             return
-
-        if coords is None:
-            self.init(shape=shape)
-            return
-
-        if shape is None:
-            self.load(coords=coords)
+        else:
+            self._init(shape=shape, pos=pos, size=size)
 
 
     def load(self, coords, shape=None):
@@ -39,7 +34,7 @@ class Grid:
             self._nodes.append(node)
 
 
-    def init(self, shape, pos=[0, 0], size=[100, 100]):
+    def _init(self, shape, pos, size):
         num_rows, num_cols = shape
         if num_rows < 1 or num_cols < 1:
             raise ValueError("At least 1 rows and 1 columns are expected")
@@ -58,7 +53,7 @@ class Grid:
                 coord = (x0 + col_step * col, y0 + row_step * row)
                 coords.append(coord)
 
-        self.load(shape, coords)
+        self.load(coords=coords, shape=shape)
 
 
     @property
