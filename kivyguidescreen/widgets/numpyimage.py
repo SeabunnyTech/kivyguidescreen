@@ -63,26 +63,8 @@ class NumpyImage(Image):
         self.canvas.ask_update()
 
 
-    @staticmethod
-    def find_dtype(shape, array):
-        if len(shape) == 3:
-            dtype = np.uint8
-        elif len(shape) == 2:
-            h, w = shape[0:2]
-            bytes_per_pixel = len(array) / (h * w)
-
-            if bytes_per_pixel == 1:
-                dtype = np.uint8
-            elif bytes_per_pixel == 2:
-                dtype = np.uint16
-
-        return dtype
-
-
     def on_sio_image(self, *args):
         img = self.sio_image
-        shape = img['shape']
-        array = img['array']
-        dtype = NumpyImage.find_dtype(shape, array)
+        shape, array, dtype = [img[it] for it in ['shape', 'array', 'dtype']]
         self.numpy_image = npimage = np.frombuffer(array, dtype=dtype).reshape(*shape)
 
