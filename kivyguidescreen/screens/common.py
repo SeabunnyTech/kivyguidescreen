@@ -89,7 +89,8 @@ class SetupScreen(GuideScreen, SwitchMonitorBehavior):
             if keyname in options:
                 opt = options[keyname]
                 self.load_option(opt)
-                self.upload_to_manager(calibrate_option=opt.data)
+                # 存下 monitor 物件會產生 JSON Serialize 錯誤，而我們一時又用不到 Kinect2 的選項所以先不要 upload
+                # self.upload_to_manager(calibrate_option=opt.data)
 
 
     def on_press_enter(self):
