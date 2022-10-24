@@ -11,7 +11,7 @@ setup(name='kivyguidescreen',
       author='Cloud',
       author_email='cloud@seabunny.tech',
       license='MIT',
-      packages=['kivyguidescreen', 'kivyguidescreen.screens', 'kivyguidescreen.widgets'],
+      packages=['kivyguidescreen', 'kivyguidescreen.screens', 'kivyguidescreen.widgets', 'kivyguidescreen.utils'],
       install_requires=[
           'kivy'
       ],
