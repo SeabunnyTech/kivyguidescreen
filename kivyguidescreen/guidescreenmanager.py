@@ -269,7 +269,7 @@ class GuideScreenManager(ScreenManager):
 
 
 from .behaviors import SwitchMonitorBehavior
-
+from .utils.properties import GuideScreenVariableProperty
 
 class GuideScreen(Screen, SwitchMonitorBehavior):
 
@@ -299,6 +299,8 @@ class GuideScreen(Screen, SwitchMonitorBehavior):
             if tag:
                 kw['name'] += '-' + tag
         super(GuideScreen, self).__init__(**kw)
+        for it in [x for x in dir(self) if isinstance(x, GuideScreenVariableProperty)]:
+            it.manager = self.manager
 
     def freeze(self):
         self.state.update()#{'cursor_type' : self.cursor_type})
