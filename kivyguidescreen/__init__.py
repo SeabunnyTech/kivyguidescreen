@@ -1,1 +1,1 @@
-from .guidescreenmanager import GuideScreenManager, GuideScreen
+from .guidescreenmanager import GuideScreenManager, GuideScreen, GuideScreenVariable

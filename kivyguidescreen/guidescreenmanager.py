@@ -119,7 +119,6 @@ class GuideScreenManager(ScreenManager):
     def load_settings(self, settings):
         self.settings = QueryDict(renumpy(settings))
         screen_to_go = self.get_screen(settings['current'])
-        screen_to_go.unfreeze(settings['screen_state'])
         self.current = settings['current']
 
 
@@ -209,6 +208,8 @@ class GuideScreenManager(ScreenManager):
             return True
         elif self.current_screen.switch_monitor_by_digitkey and keyname in '123456789':
             screen = self.current_screen
+            if len(screen.monitor_options) < int(keyname):
+                return self.current_screen.on_key_down(keyname, modifiers)
             target_monitor = screen.monitor_options[int(keyname) - 1]
             screen.switch_to_monitor(target_monitor)
         else:
@@ -233,7 +234,6 @@ class GuideScreenManager(ScreenManager):
     def save_settings(self, filename):
         settings = self.settings
         settings.current = self.current
-        settings.screen_state = self.current_screen.freeze()
         try:
             # could fail here
             with open(filename + '.bak', 'w') as tempfile:
@@ -269,7 +269,26 @@ class GuideScreenManager(ScreenManager):
 
 
 from .behaviors import SwitchMonitorBehavior
-from .utils.properties import GuideScreenVariableProperty
+import copy
+
+
+class GuideScreenVariable:
+
+    def __init__(self, default, name=None, screen=None):
+        self.default = default
+        self._name = name
+        self._screen = screen
+
+    def read(self):
+        try:
+            return self._screen.load_from_manager(self._name)
+        except KeyError:
+            return self.default
+
+    def write(self, value):
+        return self._screen.upload_to_manager(**{self._name:value})
+
+
 
 class GuideScreen(Screen, SwitchMonitorBehavior):
 
@@ -281,7 +300,7 @@ class GuideScreen(Screen, SwitchMonitorBehavior):
     guide = StringProperty('')
 
     # 變數命名設定
-    remap_vars = DictProperty({})
+    inter_screen_var_remap = DictProperty({})
 
     # 外觀
     cursor = OptionProperty('big cross', options=['hidden', 'big cross', 'tiny cross'])
@@ -293,22 +312,54 @@ class GuideScreen(Screen, SwitchMonitorBehavior):
     numpad_as_arrows = BooleanProperty(False)
 
     def __init__(self, tag=None, **kw):
-        self.state = QueryDict({})
+
+        # 自動產生頁面名稱
         if 'name' not in kw:
             kw['name'] = self.__class__.__name__.lower()
             if tag:
                 kw['name'] += '-' + tag
+
+        # 產生 guide screen variables 並且
+        gsv_names = self._list_guidescreen_variables()
+        self._generate_gsv_instances(gsv_names, var_remap={k:v for k, v in kw.items() if k in gsv_names})
+
+        # 移除與任意 gsv 同名的關鍵字參數
+        for gsv_name in gsv_names:
+            kw.pop(gsv_name)
+        #print('removing', gsv_names, 'from', self.__class__.__name__)
+
         super(GuideScreen, self).__init__(**kw)
-        for it in [x for x in dir(self) if isinstance(x, GuideScreenVariableProperty)]:
-            it.manager = self.manager
 
-    def freeze(self):
-        self.state.update()#{'cursor_type' : self.cursor_type})
-        return self.state
+    def _list_guidescreen_variables(self):
+        # 列出所有的 GuideScreenVariable (gsv)
+        #return [varname for varname in vars(self) if isinstance(getattr(self, varname), GuideScreenVariable)]
+        gsv_names = []
+        for varname in [it for it in dir(self) if not it.startswith('_')]:
+            try:
+                if isinstance(getattr(self, varname), GuideScreenVariable):
+                    gsv_names.append(varname)
+            except AttributeError:
+                pass
+        return gsv_names
 
-    def unfreeze(self, state):
-        self.state = QueryDict(state)
-        #self.cursor_type = self.state.cursor_type
+    def _generate_gsv_instances(self, gsv_names, var_remap):
+        # 針對每個 GuideScreenVariable 產生一個 instance 在自己物件內
+        for gsv_name in gsv_names:
+            var = getattr(self, gsv_name)
+            varname = gsv_name
+            
+            # varname remapping
+            if varname in var_remap:
+                varname = var_remap[gsv_name]
+
+            # 準備一份不會受原物件干擾的預設值物件
+            default = copy.deepcopy(var.default)
+
+            # 產生自己的那份 GuideScreenVariable
+            gsv = GuideScreenVariable(name=varname, default=default, screen=self)
+
+            # 取代 class variable
+            setattr(self, gsv_name, gsv)
 
     def on_arrow_pressed(self, keyname, dxdy):
         pass
@@ -329,8 +380,8 @@ class GuideScreen(Screen, SwitchMonitorBehavior):
         self.manager.current = self.manager.previous()
 
     def load_from_manager(self, varname):
-        if varname in self.remap_vars:
-            varname = self.remap_vars[varname]
+        if varname in self.inter_screen_var_remap:
+            varname = self.inter_screen_var_remap[varname]
         var = self.manager.settings[varname]
         if isinstance(var, dict):
             var = QueryDict(var)
@@ -339,10 +390,10 @@ class GuideScreen(Screen, SwitchMonitorBehavior):
     def upload_to_manager(self, overwrite=False, **kw):
 
         # 重訂變數名
-        for original_name in self.remap_vars:
+        for original_name in self.inter_screen_var_remap:
             if original_name not in kw:
                 continue
-            new_name = self.remap_vars[original_name]
+            new_name = self.inter_screen_var_remap[original_name]
             kw[new_name] = kw.pop(original_name)
 
         self.manager.settings.update(kw)
