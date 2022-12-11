@@ -26,16 +26,16 @@ class NumpyImageScreen(GuideScreen):
 
 
     def _connect(self, dt):
-        self.socketio_client.emit(event=self.source_node.lower(), data='', namespace=None, callback=self._on_connect)
+        self.socketio_client.emit(event=self.source_node.lower(), data='', namespace=None, callback=self._on_connected)
 
 
-    def _on_connect(self, *args):
+    def _on_connected(self, *args):
         self.anchor_y = 'top'
         self._routine = Clock.schedule_interval(self._retrieve_camera_view, 1/30)
-        self.on_connect(*args)
+        self.on_connected(*args)
 
 
-    def on_connect(self, *args):
+    def on_connected(self, *args):
         pass
 
 
