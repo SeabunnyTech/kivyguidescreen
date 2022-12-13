@@ -208,7 +208,7 @@ class GuideScreenManager(ScreenManager):
             return True
         elif self.current_screen.switch_monitor_by_digitkey and keyname in '123456789':
             screen = self.current_screen
-            if len(screen.monitor_options) < int(keyname):
+            if len(screen.monitor_options) < int(keyname) and 'on_key_down' in dir(self.current_screen):
                 return self.current_screen.on_key_down(keyname, modifiers)
             target_monitor = screen.monitor_options[int(keyname) - 1]
             screen.switch_to_monitor(target_monitor)
@@ -274,7 +274,7 @@ import copy
 
 class GuideScreenVariable:
 
-    def __init__(self, default, name=None, screen=None):
+    def __init__(self, default=None, name=None, screen=None):
         self.default = default
         self._name = name
         self._screen = screen
@@ -325,8 +325,8 @@ class GuideScreen(Screen, SwitchMonitorBehavior):
 
         # 移除與任意 gsv 同名的關鍵字參數
         for gsv_name in gsv_names:
-            kw.pop(gsv_name)
-        #print('removing', gsv_names, 'from', self.__class__.__name__)
+            if gsv_name in kw:
+                kw.pop(gsv_name)
 
         super(GuideScreen, self).__init__(**kw)
 
