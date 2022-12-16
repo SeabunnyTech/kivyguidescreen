@@ -279,6 +279,10 @@ class GuideScreenVariable:
         self._name = name
         self._screen = screen
 
+    @property
+    def name(self):
+        return self._name
+
     def read(self):
         try:
             return self._screen.load_from_manager(self._name)
