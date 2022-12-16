@@ -429,6 +429,9 @@ class GuideScreen(Screen, SwitchMonitorBehavior):
     def socketio_client(self):
         return self.manager.socketio_client(self)
 
+    def on_press_enter(self):
+        self.goto_next_screen()
+
 
 
 from kivy.lang import Builder
