@@ -105,11 +105,12 @@ class LoadAutoSaveScreen(GuideScreen):
             self.goto_next_screen()
 
 
-    def on_key_down(self, keyname, modifiers):
-        if keyname not in ['0', 'numpad0']:
-            self.load_autosave()
-        else:
-            self.goto_next_screen()
+    def on_press_enter(self):
+        self.load_autosave()
+
+
+    def on_press_space(self):
+        self.goto_next_screen()
 
 
     def load_autosave(self):
@@ -133,7 +134,7 @@ Builder.load_string("""
 
 <LoadAutoSaveScreen>:
     background: {colors.C}
-    guide: '是否要接續上次中斷的校正程序呢?\\n按 0 跳過，按其他任意鍵載入'
+    guide: '是否要接續上次中斷的校正程序呢?\\n按 Space 重來，按 Enter 載入先前進度'
     autosave: False
 
 """.format(colors=GuideScreenManager.colors))
