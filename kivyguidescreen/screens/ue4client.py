@@ -6,6 +6,35 @@ from kivyguidescreen.widgets.numpyimage import NumpyImage
 from kivy.clock import Clock, mainthread
 
 
+class JsonHubInterface:
+
+
+    def save_to_jsonhub(self, id, parameters):
+        # 檢查名稱
+        if 'id' in parameters and parameters['id'] != id:
+            raise ValueError("parameters['id'] " + str(parameters['id']) + " conflicts with argument 'id' " + id)
+        parameters['id'] = id
+
+        # 送出
+        assert 'socketio_client' in dir(self)
+        self.socketio_client.emit(event='jsonhub.save', data=parameters, namespace=None, callback=self.on_json_saved)
+
+
+    def load_from_jsonhub(self, id):
+        assert 'socketio_client' in dir(self)
+        self.socketio_client.emit(event='jsonhub.load', data=id, namespace=None, callback=self.on_json_loaded)
+
+
+    def on_json_loaded(self, *args):
+        raise NotImplementedError
+
+
+    def on_json_saved(self, *args):
+        pass
+
+
+
+
 class NumpyImageScreen(GuideScreen):
 
     """
@@ -64,7 +93,6 @@ class NumpyImageScreen(GuideScreen):
         camera_quad = recursive_round(grideditor.griddata)
         self.upload_to_manager(**{self.quad_out : camera_quad})
         self.goto_next_screen()
-
 
 
 
