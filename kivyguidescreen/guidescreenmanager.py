@@ -374,7 +374,7 @@ class GuideScreen(Screen, SwitchMonitorBehavior):
 
     def goto_next_screen(self, *args):
         if self.manager.current_screen == self.manager.screens[-1]:
-            stopTouchApp()
+            return
         self.manager.current = self.manager.next()
 
     def undo(self):
