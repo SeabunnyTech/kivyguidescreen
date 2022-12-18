@@ -4,10 +4,109 @@ from kivy.graphics import Line, Color, Point, InstructionGroup
 from kivy.clock import Clock
 from kivy.core.window import Window
 
-from kivyguidescreen import GuideScreen, GuideScreenManager
-from kivy.properties import StringProperty, DictProperty
+from kivyguidescreen import GuideScreen, GuideScreenManager, GuideScreenVariable
+from kivy.properties import StringProperty, DictProperty, NumericProperty
 
 from kivyguidescreen.utils import armath
+
+
+
+
+class VarifyElevatedQuadScreen(GuideScreen):
+
+    elevation_mm = NumericProperty(120)
+    table_quad_mm = GuideScreenVariable()
+    table_quad_pixel = GuideScreenVariable()
+    elevated_quad_pixel = GuideScreenVariable()
+
+    lens_center_xyz = GuideScreenVariable()
+
+    def _prepare_tansforms(self):
+        from kivyguidescreen.utils.armath import PerspectiveTransform
+        planar_uvs = self.table_quad_pixel.read().coords
+        planar_xys = self.table_quad_mm.read().coords
+
+        # planar_uvs 會持續改變所以 PerspectiveTransform 無法預先產生
+        self.uv_to_xy_transform = PerspectiveTransform(src_points=planar_uvs, dst_points=planar_xys)
+        self.xy_to_uv_transform = PerspectiveTransform(src_points=planar_xys, dst_points=planar_uvs)
+
+    def to_xy(self, uvs):
+        return self.uv_to_xy_transform.apply(uvs)
+
+    def to_uv(self, xys):
+        return self.xy_to_uv_transform.apply(xys)
+
+
+    def on_enter(self):
+        self._prepare_tansforms()
+        self._lens_center_xyz = self.compute_center_of_lens()
+        
+        self._routine = Clock.schedule_interval(self._draw_pointer, 1/30)
+
+
+    def on_press_enter(self):
+        self.goto_next_screen()
+        self.lens_center_xyz.write(self._lens_center_xyz)
+
+
+    def on_leave(self):
+        if self._routine:
+            self._routine.cancel()
+            self._routine = None
+
+
+    def _draw_pointer(self, *args):
+        f32 = np.float32
+
+        # 先找出尖點的 xyz
+        cursor_x, cursor_y = self.to_xy(self.subpixel_cursor)
+        pointer_xyz = f32([cursor_x, cursor_y, self.elevation_mm])
+
+        # 計算從鏡心出發的射線通過尖點後在桌面的落點
+        lens_center_xyz = f32(self._lens_center_xyz)
+        dxdy_per_z = (lens_center_xyz - pointer_xyz) / (lens_center_xyz[2] - pointer_xyz[2])
+        landing_xy = (pointer_xyz - self.elevation_mm * dxdy_per_z)[:2]
+
+        # 畫出投射點        
+        canvas = self.canvas.after
+        canvas.clear()
+        r = 10
+        u, v = landing_uv = self.to_uv(landing_xy)
+        self.canvas.after.add(Line(points=[u-r, v, u+r, v], width=0.5))
+        self.canvas.after.add(Line(points=[u, v-r, u, v+r], width=0.5))
+
+
+    def compute_center_of_lens(self):
+
+        elevated_uvs = self.elevated_quad_pixel.read().coords
+        elevated_xys = self.table_quad_mm.read().coords
+
+        tails_xys = self.to_xy(elevated_uvs)
+        heads_xy = [np.array([xy]).reshape(2) for xy in elevated_xys]
+        heads_z = self.elevation_mm
+
+        '''
+        generating relation matrix
+        [[1, 0, ax]
+         [0, 1, ay]] * [x, y, z].T = [tx, ty].T
+        where ax, ay = (tail - head) / headtop_height
+        tx, ty = tail
+        '''
+        A, b = [], []
+        for idx in range(len(elevated_uvs)):
+            ax, ay = (tails_xys[idx] - heads_xy[idx]) / float(heads_z)
+            arr = np.array([[1, 0, ax], [0, 1, ay]])
+            tx, ty = tails_xys[idx]
+            A.append(arr)
+            b.append([tx, ty])
+
+        # assembly all the points
+        A = np.vstack(A)
+        b = np.hstack(b)
+        
+        lens_center_xyz = np.linalg.lstsq(A, b, rcond=None)[0].tolist()
+
+        return [float(c) for c in lens_center_xyz]
 
 
 
@@ -143,6 +242,9 @@ class ReportProjectorParameterScreen(GuideScreen):
 from kivy.lang import Builder
 Builder.load_string("""
 
+<VarifyElevatedQuadScreen>:
+    cursor: 'tiny cross'
+    guide: "任意移動游標，檢查它是否與抬升 " + str(self.elevation_mm) + " mm 後的位置是否相符"
 
 <ReportProjectorParameterScreen>:
     cursor: 'hidden'
