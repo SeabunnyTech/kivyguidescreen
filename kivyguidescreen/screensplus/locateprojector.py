@@ -111,7 +111,87 @@ class VarifyElevatedQuadScreen(GuideScreen):
 
 
 
+
+
 class ReportProjectorParameterScreen(GuideScreen):
+
+    lens_center_xyz = GuideScreenVariable()
+    table_points_pixel = GuideScreenVariable()
+    table_points_mm = GuideScreenVariable()
+
+    projector_id = StringProperty('table')
+    projector_parameters = DictProperty()
+
+    state_guide = StringProperty('')
+
+
+    def undo(self):
+        self.goto_previous_screen()
+
+
+    def on_enter(self):
+        self.canvas.after.clear()
+        self.projector_parameters =self.solve_projector_heading()
+        self.state_guide = '\n按下空白鍵將校正檔傳送至伺服器儲存為 ' + self.projector_id + '.json\n'
+
+
+    def solve_projector_heading(self):
+        projector_parameters = armath.solve_projector_heading(
+            lens_center_xyz  = self.lens_center_xyz.read(),    # 鏡心座標的單位是 mm
+            table_corners_xy = self.table_points_mm.read().coords,
+            table_corners_uv = self.table_points_pixel.read().coords,
+            projector_resolution = self.load_from_manager('windowsize')
+        )
+
+        projector_parameters = armath.unrealize(projector_parameters)
+        projector_parameters['id'] = self.projector_id
+
+        return projector_parameters
+
+
+    def on_press_space(self):
+        self.state_guide = '\n傳送中 ...\n'
+        Clock.schedule_once(self.upload_projector_parameters, 0.1)
+
+
+    def upload_projector_parameters(self, dt):
+        self.socketio_client.emit(event='jsonhub.save', data=self.projector_parameters, namespace=None, callback=self.on_done_uploading)
+
+
+    def on_done_uploading(self, *args):
+        self.state_guide = '\n已將校正檔傳送至伺服器儲存為 ' + self.projector_id + '.json\n'
+
+
+    def on_press_enter(self):
+        self.upload_to_manager(projector_parameters=self.projector_parameters)
+        self.goto_next_screen()
+
+
+    def on_state_guide(self, *args):
+        self.update_guide()
+
+
+    def on_projector_parameters(self, *args):
+        self.update_guide()
+
+
+    def update_guide(self, *arg):
+        guide = ''
+
+        for it in self.projector_parameters.items():
+            guide += str(it[0]) + ': ' + str(it[1]) + '\n'
+
+        guide += self.state_guide
+
+        self.guide = guide
+
+
+
+
+
+
+
+class ReportProjectorParameterScreenOld(GuideScreen):
 
     lens_center_xyz = StringProperty('lens_center_xyz')
 
